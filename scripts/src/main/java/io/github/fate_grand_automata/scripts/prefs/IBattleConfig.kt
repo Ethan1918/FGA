@@ -12,6 +12,12 @@ interface IBattleConfig {
     val id: String
     var name: String
     var skillCommand: String
+
+    /**
+     * 手牌条件技能规则（先看手牌、条件不满足才放技能）。
+     * 语法见 `HandCardSkillRule`，空串表示未启用。
+     */
+    val handCardSkillRule: String
     var cardPriority: CardPriorityPerWave
     val useServantPriority: Boolean
     val servantPriority: ServantPriorityPerWave

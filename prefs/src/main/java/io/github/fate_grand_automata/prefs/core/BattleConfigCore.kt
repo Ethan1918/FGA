@@ -45,6 +45,7 @@ class BattleConfigCore(
 
     val name = maker.string("autoskill_name", "--")
     val skillCommand = maker.string("autoskill_cmd")
+    val handCardSkillRule = maker.string("hand_card_skill_rule", "")
     val notes = maker.string("autoskill_notes")
 
     val cardPriority = maker.serialized(

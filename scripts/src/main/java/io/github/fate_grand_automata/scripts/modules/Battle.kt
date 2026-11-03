@@ -10,7 +10,9 @@ import io.github.fate_grand_automata.scripts.models.battle.BattleState
 import io.github.fate_grand_automata.scripts.prefs.IBattleConfig
 import io.github.lib_automata.dagger.ScriptScope
 import javax.inject.Inject
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 @ScriptScope
 class Battle @Inject constructor(
@@ -24,7 +26,8 @@ class Battle @Inject constructor(
     private val skillSpam: SkillSpam,
     private val shuffleChecker: ShuffleChecker,
     private val stageTracker: StageTracker,
-    private val autoChooseTarget: AutoChooseTarget
+    private val autoChooseTarget: AutoChooseTarget,
+    private val handCardTrigger: HandCardTrigger
 ) : IFgoAutomataApi by api {
     init {
         prefs.stopAfterThisRun = false
@@ -81,13 +84,37 @@ class Battle @Inject constructor(
         val npUsage = autoSkill.execute(state.stage, state.turn)
         skillSpam.spamSkills()
 
-        val cards = clickAttack()
-            .takeUnless { shouldShuffle(it, npUsage) }
-            ?: shuffleCards()
+        var cards = clickAttack()
+
+        if (handCardTrigger.shouldPeek(state.stage) && handCardTrigger.shouldCast(cards, state.stage)) {
+            // 手牌不满足条件（某色卡不够 / 可用卡总数不对）：
+            // 先退回战斗主界面释放指定技能，再重新进入出卡界面（未用洗牌类技能时手牌不变）
+            locations.attack.backClick.click()
+            waitForBattleScreen()
+            handCardTrigger.cast()
+            cards = clickAttack()
+        }
+
+        if (shouldShuffle(cards, npUsage)) {
+            cards = shuffleCards()
+        }
 
         card.clickCommandCards(cards, npUsage)
 
         0.5.seconds.wait()
+    }
+
+    /** 从出卡界面返回后等待战斗主界面（Attack 按钮）重新出现。 */
+    private fun waitForBattleScreen(timeout: Duration = 5.seconds) {
+        val start = TimeSource.Monotonic.markNow()
+
+        while (start.elapsedNow() < timeout) {
+            if (images[Images.BattleScreen] in locations.battle.screenCheckRegion) {
+                return
+            }
+
+            0.1.seconds.wait()
+        }
     }
 
     private fun shouldShuffle(cards: List<ParsedCard>, npUsage: NPUsage): Boolean {
